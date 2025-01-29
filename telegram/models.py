@@ -32,7 +32,6 @@ class Group(models.Model):
 
 
 class UserAdmin(models.Model):
-
     telegram_id = models.IntegerField(
         unique=True,
     )
@@ -56,8 +55,9 @@ class UserAdmin(models.Model):
     )
 
     def __str__(self):
-        return f"{self.first_name} {self.last_name or ''} ({self.username})"
+        return f"{self.first_name}"
 
     class Meta:
         verbose_name = 'Пользователь'
         verbose_name_plural = 'Пользователи'
+
