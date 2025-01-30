@@ -53,6 +53,13 @@ class UserAdmin(models.Model):
     is_admin = models.BooleanField(
         default=False
     )
+    notified = models.BooleanField(
+        default=False
+    )
+    accepted = models.BooleanField(
+        default=False
+    )
+
 
     def __str__(self):
         return f"{self.first_name}"
@@ -61,3 +68,31 @@ class UserAdmin(models.Model):
         verbose_name = 'Пользователь'
         verbose_name_plural = 'Пользователи'
 
+
+class Message(models.Model):
+    group = models.ForeignKey(
+        Group,
+        on_delete=models.CASCADE)
+    user = models.ForeignKey(
+        UserAdmin,
+        on_delete=models.CASCADE
+    )
+    text = models.TextField(
+        blank=True,
+        null=True
+    )
+    media_file = models.FileField(
+        upload_to='media/',
+        blank=True,
+        null=True
+    )
+    sent_at = models.DateTimeField(
+        auto_now_add=True
+    )
+
+    def __str__(self):
+        return f"Message {self.user.first_name} to {self.group.name} at {self.sent_at}"
+
+    class Meta:
+        verbose_name = 'Сообщение'
+        verbose_name_plural = 'Сообщения'
