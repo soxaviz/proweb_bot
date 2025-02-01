@@ -2,11 +2,15 @@ from django.db import models
 
 
 class Course(models.Model):
-    title = models.CharField(
-        max_length=300
+    course_title = models.CharField(
+        max_length=300,
+        blank=True,
+        null=True
     )
     language = models.CharField(
-        max_length=150
+        max_length=150,
+        blank=True,
+        null=True
     )
 
     class Meta:
@@ -17,13 +21,19 @@ class Course(models.Model):
 class Group(models.Model):
     course = models.ForeignKey(
         Course,
-        on_delete=models.CASCADE
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True
     )
-    name = models.CharField(
-        max_length=300
+    group_title = models.CharField(
+        max_length=300,
+        blank=True,
+        null=True
     )
     telegram_group_id = models.CharField(
-        max_length=250
+        max_length=250,
+        blank=True,
+        null=True
     )
 
     class Meta:
@@ -59,7 +69,6 @@ class UserAdmin(models.Model):
     accepted = models.BooleanField(
         default=False
     )
-
 
     def __str__(self):
         return f"{self.first_name}"

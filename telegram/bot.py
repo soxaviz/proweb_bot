@@ -1,205 +1,95 @@
 import telebot
 from telebot import types
-from django.utils import timezone
-from .models import UserAdmin, Group, Course, Message
-from .message import *
-
+from .models import UserAdmin, Group, Message
+from django.conf import settings
 
 TOKEN = '7961570181:AAGP3LOMEp1S7wjF9K9AzGD1v8aazy8tmiI'
 bot = telebot.TeleBot(TOKEN)
 
 
-def is_admin(user_id):
+@bot.message_handler(content_types=['new_chat_members'])
+def test(message):
 
-    try:
-        user = UserAdmin.objects.get(telegram_id=user_id)
-        return user.is_admin
+    telegram_group_id = message.chat.id
+    group_title = message.chat.title
 
-    except UserAdmin.DoesNotExist:
-        return False
+    group, created = Group.objects.get_or_create(telegram_group_id=telegram_group_id, defaults={
+
+        'group_title': group_title,
+
+    })
 
 
 @bot.message_handler(commands=['start'])
-def start(message):
+def command_start(message):
 
     telegram_id = message.from_user.id
-    user = UserAdmin.objects.filter(telegram_id=telegram_id).first()
+    username = message.from_user.username
+    first_name = message.from_user.first_name
+    last_name = message.from_user.last_name
 
-    if not user:
-        user = UserAdmin(telegram_id=telegram_id, is_admin=False, notified=False)
-        user.save()
+    user, created = UserAdmin.objects.get_or_create(telegram_id=telegram_id, defaults={
 
-    if not user.is_admin:
-        if not user.notified:
-            invite_markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
-            button_yes = types.KeyboardButton("Согласен")
-            button_no = types.KeyboardButton("Отказываюсь")
-            invite_markup.add(button_yes, button_no)
-            bot.send_message(telegram_id, INVITE_PROMPT, reply_markup=invite_markup)
-            user.notified = True
-            user.save()
-        else:
-            bot.send_message(telegram_id, ALREADY_ADMIN)
-    else:
-        send_admin_panel(telegram_id)
+        'username': username,
+        'first_name': first_name,
+        'last_name': last_name,
+        'is_admin': False,
+
+    })
+    
+
+    bot.send_message(telegram_id, "Вы успешно зарегистрированы в боте!")
+    send_admin_menu(user)
 
 
-@bot.message_handler(func=lambda message: message.text in ["Согласен", "Отказываюсь"])
-def handle_invite_response(message):
+@bot.callback_query_handler(func=lambda call: call.data.startswith('accept_') or call.data.startswith('decline_'))
+def handle_admin_confirmation(call):
 
-    telegram_id = message.from_user.id
-    user = UserAdmin.objects.get(telegram_id=telegram_id)
+    action, telegram_id = call.data.split('_')
+    user = UserAdmin.objects.get(telegram_id=int(telegram_id))
 
-    if message.text == "Согласен":
-        user.is_admin = True
+    if action == 'accept':
         user.accepted = True
-        user.admin_since = timezone.now()
+        user.is_admin = True
         user.save()
-        bot.send_message(telegram_id, CONFIRM_ADMIN)
-        send_admin_panel(telegram_id)
+        bot.send_message(user.telegram_id,
+                         "Вы успешно стали администратором бота! Теперь у вас есть доступ к функциям.")
+        send_admin_menu(user)
+    elif action == 'decline':
+        user.is_admin = False
+        user.accepted = False
+        user.save()
+        bot.send_message(user.telegram_id, "Вы отказались от роли администратора. Вы остаетесь обычным пользователем.")
+    bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=None)
+
+
+@bot.message_handler(func=lambda message: message.text == "Назад")
+def handle_back(message):
+
+    user = UserAdmin.objects.get(telegram_id=message.from_user.id)
+    if user.is_admin:
+
+        send_admin_menu(user)
     else:
-        bot.send_message(telegram_id, CANCEL_ADMIN)
+        bot.send_message(message.chat.id, "Вы не являетесь администратором.")
 
 
-def send_admin_panel(telegram_id):
+def send_admin_menu(user):
 
-    user = UserAdmin.objects.filter(telegram_id=telegram_id).first()
+    if user.is_admin:
 
-    if user and user.is_admin:
-        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        button_courses = types.KeyboardButton("Выбрать курс")
-        button_send = types.KeyboardButton("Отправить рассылку")
-        button_manage = types.KeyboardButton("Управление сообщениями")
-        markup.add(button_courses, button_send, button_manage)
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
 
-        bot.send_message(telegram_id, WELCOME_TEXT, reply_markup=markup)
+        markup.add(
+            types.KeyboardButton("Выбрать группу"),
+            types.KeyboardButton("Просмотреть сообщения"),
+            types.KeyboardButton("Назад")
+        )
+
+        bot.send_message(user.telegram_id, "Выберите действие:", reply_markup=markup)
+
     else:
-        bot.send_message(telegram_id, "Вы не были одобрены как администратор.")
+
+        bot.send_message(user.chat.id, "Вы не являетесь администратором.")
 
 
-@bot.message_handler(func=lambda message: message.text == "Выбрать курс")
-def choose_course(message):
-    telegram_id = message.from_user.id
-    if not is_admin(telegram_id):
-        bot.send_message(telegram_id, NO_PERMISSION)
-
-        return
-
-    courses = Course.objects.all()
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    for course in courses:
-        markup.add(types.KeyboardButton(course.title))
-
-    bot.send_message(telegram_id, COURSES_PROMPT, reply_markup=markup)
-
-
-@bot.message_handler(func=lambda message: message.text == "Отправить рассылку")
-def start_broadcast(message):
-
-    telegram_id = message.from_user.id
-
-    if not is_admin(telegram_id):
-        bot.send_message(telegram_id, NO_PERMISSION)
-        return
-
-    bot.send_message(telegram_id, "Пожалуйста, введите текст для рассылки.")
-
-
-def choose_course_for_broadcast(message, text):
-    telegram_id = message.from_user.id
-    if not is_admin(telegram_id):
-        bot.send_message(telegram_id, NO_PERMISSION)
-        return
-
-    course = Course.objects.get(title=message.text)
-    groups = Group.objects.filter(course=course)
-
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    for group in groups:
-        markup.add(types.KeyboardButton(group.name))
-
-    bot.send_message(telegram_id, "Выберите группу для отправки сообщения:", reply_markup=markup)
-    bot.register_next_step_handler(message, lambda msg: send_message_to_group(msg, text))
-
-
-def send_message_to_group(message, text):
-    telegram_id = message.from_user.id
-    if not is_admin(telegram_id):
-        bot.send_message(telegram_id, NO_PERMISSION)
-        return
-
-    group = Group.objects.get(name=message.text)
-
-    bot.send_message(group.telegram_group_id, text)
-    Message.objects.create(user=UserAdmin.objects.get(telegram_id=telegram_id), group=group, text=text)
-    bot.send_message(telegram_id, "Сообщение успешно отправлено в группу.")
-
-
-@bot.message_handler(func=lambda message: message.text == "Управление сообщениями")
-def manage_messages(message):
-    telegram_id = message.from_user.id
-    if not is_admin(telegram_id):
-        bot.send_message(telegram_id, NO_PERMISSION)
-        return
-
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    button_delete = types.KeyboardButton("Удалить сообщение")
-    button_pin = types.KeyboardButton("Закрепить сообщение")
-    button_back = types.KeyboardButton("Назад в меню")
-    markup.add(button_delete, button_pin, button_back)
-
-    bot.send_message(telegram_id, "Выберите действие:", reply_markup=markup)
-
-
-@bot.message_handler(func=lambda message: message.text in ["Удалить сообщение", "Закрепить сообщение"])
-def handle_manage_actions(message):
-    telegram_id = message.from_user.id
-    if not is_admin(telegram_id):
-        bot.send_message(telegram_id, NO_PERMISSION)
-        return
-
-    if message.text == "Удалить сообщение":
-        bot.send_message(telegram_id, "Отправьте сообщение, которое нужно удалить.")
-        bot.register_next_step_handler(message, delete_message)
-
-    elif message.text == "Закрепить сообщение":
-        bot.send_message(telegram_id, "Отправьте сообщение, которое нужно закрепить.")
-        bot.register_next_step_handler(message, pin_message)
-
-
-def delete_message(message):
-    telegram_id = message.from_user.id
-    if not is_admin(telegram_id):
-        bot.send_message(telegram_id, NO_PERMISSION)
-        return
-
-    if message.reply_to_message:
-        bot.delete_message(message.chat.id, message.reply_to_message.message_id)
-        bot.send_message(telegram_id, "Сообщение удалено.")
-    else:
-        bot.send_message(telegram_id, "Вы не выбрали сообщение для удаления.")
-
-
-def pin_message(message):
-    telegram_id = message.from_user.id
-    if not is_admin(telegram_id):
-        bot.send_message(telegram_id, NO_PERMISSION)
-        return
-
-    if message.reply_to_message:
-        bot.pin_chat_message(message.chat.id, message.reply_to_message.message_id)
-        bot.send_message(telegram_id, "Сообщение закреплено.")
-    else:
-        bot.send_message(telegram_id, "Вы не выбрали сообщение для закрепления.")
-
-def back_keys(message):
-    telegram_id = message.from_user.id
-    if not is_admin(telegram_id):
-        bot.send_message(telegram_id, NO_PERMISSION)
-        return
-
-    if message.reply_to_message:
-        bot.back_keys_message(message.chat.id, message.reply_to_message.message_id)
-
-
-bot.remove_webhook(url=http://127.0.0.1:8000)

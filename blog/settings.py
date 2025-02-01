@@ -26,8 +26,8 @@ SECRET_KEY = 'django-insecure-*g5^x+e4igf4p4(hp107m7ty(^z6%+2pnkb&81z9*))nzy3xu!
 DEBUG = True
 
 ALLOWED_HOSTS = ['*']
-
-
+NGROK = 'https://418c-192-166-230-205.ngrok-free.app'
+CSRF_TRUSTED_ORIGINS = [NGROK]
 # Application definition
 
 INSTALLED_APPS = [
@@ -127,4 +127,3 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 TELEGRAM_TOKEN='7961570181:AAGP3LOMEp1S7wjF9K9AzGD1v8aazy8tmiI'
 
-WEBHOOK='https://webhook.site/d313b5b3-f6c5-42cc-a62c-8ce11113e7be'
