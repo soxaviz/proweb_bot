@@ -35,6 +35,11 @@ class Group(models.Model):
         blank=True,
         null=True
     )
+    group_type = models.CharField(
+        max_length=150,
+        blank=True,
+        null=True
+    )
 
     class Meta:
         verbose_name = 'Группа'
@@ -99,8 +104,6 @@ class Message(models.Model):
         auto_now_add=True
     )
 
-    def __str__(self):
-        return f"Message {self.user.first_name} to {self.group.name} at {self.sent_at}"
 
     class Meta:
         verbose_name = 'Сообщение'

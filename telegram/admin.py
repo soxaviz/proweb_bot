@@ -1,7 +1,6 @@
 from django.contrib import admin
-from .models import UserAdmin
-from .bot import bot
-from telebot import types
+from .models import UserAdmin, Group, Course, Message
+from .bot import bot, types
 
 
 @admin.register(UserAdmin)
@@ -39,5 +38,13 @@ class UserAdminAdmin(admin.ModelAdmin):
                 obj.save()
 
             except Exception as e:
+                pass
 
-                print(f"Ошибка при отправке сообщения пользователю {obj.telegram_id}: {e}")
+
+
+
+@admin.register(Group)
+class Group(admin.ModelAdmin):
+    list_display = ('group_title', 'telegram_group_id', 'course')
+    list_display_links = ('group_title', 'telegram_group_id', 'course')
+    list_filter = ('group_title',)

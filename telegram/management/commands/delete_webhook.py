@@ -5,6 +5,6 @@ from django.conf import settings
 class Command(BaseCommand):
 
     def handle(self, *args, **options):
-        bot.remove_webhook(settings.NGROK)
+        bot.remove_webhook()
 
 
