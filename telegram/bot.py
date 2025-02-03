@@ -3,8 +3,11 @@ from telebot import types
 from .models import UserAdmin, Group
 
 
+
 TOKEN = '7961570181:AAGP3LOMEp1S7wjF9K9AzGD1v8aazy8tmiI'
 bot = telebot.TeleBot(TOKEN)
+
+
 
 user_group_selection = {}
 user_messages = {}
@@ -141,9 +144,14 @@ def send_admin_menu(user):
 
         markup.add(
             types.KeyboardButton("Выбрать группу"),
-            types.KeyboardButton("Выбрать личный чат студента"),
-            types.KeyboardButton("Назад")
+        )
 
+        markup.add(
+            types.KeyboardButton("Выбрать личный чат студента")
+        )
+
+        markup.add(
+            types.KeyboardButton("Назад")
         )
 
         bot.send_message(user.telegram_id, "Выберите действие:", reply_markup=markup)
@@ -186,10 +194,19 @@ def handle_group_selection(call):
     user_group_selection[call.from_user.id] = group.telegram_group_id
 
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
-    markup.add(types.KeyboardButton("Отправить сообщение"))
-    markup.add(types.KeyboardButton("Закрепить сообщение"))
-    markup.add(types.KeyboardButton("Удалить сообщение"))
-    markup.add(types.KeyboardButton("Назад"))
+
+    markup.add(
+        types.KeyboardButton("Отправить сообщение")
+    )
+    markup.add(
+        types.KeyboardButton("Закрепить сообщение")
+    )
+    markup.add(
+        types.KeyboardButton("Удалить сообщение")
+    )
+    markup.add(
+        types.KeyboardButton("Назад")
+    )
 
     bot.send_message(call.message.chat.id, f"Вы выбрали группу {group.group_title}. Что хотите сделать?",
                      reply_markup=markup)
@@ -235,7 +252,6 @@ def send_message_to_group(message):
         msg_text = "Неизвестный тип сообщения"
 
     if group_id not in user_messages:
-
         user_messages[group_id] = []
 
     user_messages[group_id].append({
@@ -248,7 +264,6 @@ def send_message_to_group(message):
 
 @bot.message_handler(func=lambda message: message.text == "Удалить сообщение")
 def handle_delete_message(message):
-
     user = UserAdmin.objects.get(telegram_id=message.from_user.id)
     group_id = user_group_selection.get(message.from_user.id)
 
@@ -317,7 +332,6 @@ def pin_message_in_group(message):
     group_id = user_group_selection.get(message.from_user.id)
 
     if group_id is None:
-
         bot.send_message(message.chat.id, "Вы не выбрали группу.")
         return
 
@@ -350,7 +364,6 @@ def handle_choose_student(message):
     users = UserAdmin.objects.filter(is_admin=False)
 
     if not users:
-
         bot.send_message(message.chat.id, "Нет пользователей для выбора.")
         return
 
@@ -362,5 +375,52 @@ def handle_choose_student(message):
                                               callback_data=f"select_student_{student.telegram_id}"))
 
     bot.send_message(message.chat.id, "Выберите студента:", reply_markup=markup)
+
+
+@bot.message_handler(func=lambda message: message.text == "Выбрать личный чат студента")
+def handle_choose_student(message):
+    user = UserAdmin.objects.get(telegram_id=message.from_user.id)
+
+    if not user.is_admin:
+        bot.send_message(message.chat.id, "Вы не являетесь администратором.")
+        return
+
+    users = UserAdmin.objects.filter(is_admin=False)
+    if not users:
+        bot.send_message(message.chat.id, "Нет пользователей для выбора.")
+        return
+
+    markup = types.InlineKeyboardMarkup()
+    for student in users:
+        markup.add(types.InlineKeyboardButton(f"{student.first_name} {student.last_name}",
+                                              callback_data=f"select_student_{student.telegram_id}"))
+
+    bot.send_message(message.chat.id, "Выберите студента:", reply_markup=markup)
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith('select_student_'))
+def handle_student_selection(call):
+
+    student_id = int(call.data.split("_"))
+
+    student = UserAdmin.objects.get(telegram_id=student_id)
+
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+
+    markup.add(
+        types.KeyboardButton("Отправить сообщение")
+    )
+
+    markup.add(
+        types.KeyboardButton("Удалить сообщение")
+    )
+
+    markup.add(
+        types.KeyboardButton("Назад")
+    )
+
+    bot.edit_message_reply_markup(call.message.chat.id, call.message.student, reply_markup=None)
+
+
 
 
